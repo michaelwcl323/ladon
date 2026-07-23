@@ -20,9 +20,9 @@ echo -e "\nwrite-file $status_file DONE" >> "$exp_data_dir/$local_master_command
 # Kill everything that is alive on the remote machines and prune old state
 echo "Killing everything that is alive and pruning state on the remote machines (including SSH) and removing potential bandwidth limit."
 
-for ip in $(cat $instance_info_file | awk '{print $2}'); do
+for ip in $(awk '!seen[$2]++ {print $2}' $instance_info_file); do
   # the grep -v \$\$ prevents the script from killing itself
-  ssh $ssh_options root@$ip "kill -9 \$(ps -ef | grep 'analyze-continuously' | grep -v \$\$ | awk '{print \$2}')" &
+  ssh $ssh_options $remote_ssh_user@$ip "kill -9 \$(ps -ef | grep 'analyze-continuously' | grep -v \$\$ | awk '{print \$2}')" &
   sleep 0.1 # Opening too many SSH connections at once makes some of them fail (keeping many open is OK, however).
 done
 wait
@@ -31,12 +31,11 @@ echo -e "\nKilled continuous analysis scripts.\n"
 
 # tc qdisc del dev ens18 root tbf rate 1gbit burst 320kbit latency 400ms
 
-for ip in $(cat $instance_info_file | awk '{print $2}'); do
-  ssh $ssh_options root@$ip "  
+for ip in $(awk '!seen[$2]++ {print $2}' $instance_info_file); do
+  ssh $ssh_options $remote_ssh_user@$ip "
     killall -9 discoverymaster discoveryslave orderingpeer orderingclient scp rsync
     rm -rf $remote_delete_files
     echo RUNNING > $remote_status_file
-    kill -9 \$(ps -ef | grep 'sshd: root@notty' | awk '{print \$2}')
     echo -e '\n\n\nBERO\n\n\n'" &
   sleep 0.1 # Opening too many SSH connections at once makes some of them fail (keeping many open is OK, however).
 done

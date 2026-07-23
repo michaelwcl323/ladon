@@ -18,22 +18,22 @@ envsubst '$ssh_key_file $own_public_ip $master_port $status_file $ready_file' < 
 echo -e "\nwrite-file $status_file DONE" >> "$exp_data_dir/$local_master_command_file"
 
 # Create remote code, config, and experiment directories
-ssh $ssh_options root@$master_ip "
+ssh $ssh_options $remote_ssh_user@$master_ip "
   mkdir -p $remote_code_dir &&
   mkdir -p $remote_config_dir &&
   mkdir -p $remote_exp_dir/raw-results" || exit 1
 
 # Upload code to the master
-rsync --progress -rptz -e "ssh $ssh_options" $local_code_files "root@$master_ip:$remote_code_dir" || exit 2
+rsync --progress -rptz -e "ssh $ssh_options" $local_code_files "$remote_ssh_user@$master_ip:$remote_code_dir" || exit 2
 
 # Upload config to the master
-rsync --progress -rptz -e "ssh $ssh_options" $exp_data_dir/config/* "root@$master_ip:$remote_config_dir" || exit 3
+rsync --progress -rptz -e "ssh $ssh_options" $exp_data_dir/config/* "$remote_ssh_user@$master_ip:$remote_config_dir" || exit 3
 
 # Upload analysis scripts and queries to the master
-rsync --progress -rptz -e "ssh $ssh_options" queries scripts "root@$master_ip:$remote_work_dir" || exit 4
+rsync --progress -rptz -e "ssh $ssh_options" queries scripts "$remote_ssh_user@$master_ip:$remote_work_dir" || exit 4
 
 # Upload commands to the master
-scp $ssh_options "$exp_data_dir/$local_master_command_file" "root@$master_ip:$remote_master_command_file" || exit 5
+scp $ssh_options "$exp_data_dir/$local_master_command_file" "$remote_ssh_user@$master_ip:$remote_master_command_file" || exit 5
 
 # # install dependencies
 # scp $ssh_options "scripts/cloud-deploy/user-script-master.sh.template" "root@$master_ip:/root" || exit 6
@@ -41,7 +41,12 @@ scp $ssh_options "$exp_data_dir/$local_master_command_file" "root@$master_ip:$re
 # ssh $ssh_options root@$master_ip "chmod u+x /root/user-script-master.sh.template;chmod u+x /root/global-vars.sh;/root/user-script-master.sh.template"
 
 # Generate TLS certificates and compile code at the master
-ssh $ssh_options root@$master_ip "
+ssh $ssh_options $remote_ssh_user@$master_ip "
+  export GOROOT=$remote_goroot &&
+  export GOPATH=$remote_gopath &&
+  export GOCACHE=$remote_work_dir/.cache/ladon-go-build &&
+  export GO111MODULE=off &&
+  export PATH=\$GOROOT/bin:\$GOPATH/bin:\$PATH &&
   cd $remote_tls_directory &&
   ./generate.sh -f $master_ip &&
   cd $remote_work_dir &&
@@ -73,7 +78,7 @@ ssh $ssh_options root@$master_ip "
 
 # Start master server
 echo "Starting result processor and master server."
-ssh $ssh_options root@$master_ip "
+ssh $ssh_options $remote_ssh_user@$master_ip "
   ulimit -Sn $open_files_limit &&
   $remote_work_dir/scripts/analyze/analyze-continuously.sh $remote_exp_dir $remote_status_file $remote_work_dir/scripts $remote_work_dir/queries $remote_gopath/bin/orderingpeer $remote_gopath/bin/orderingclient $remote_analysis_processes > $remote_exp_dir/continuous-analysis.log 2>&1 &
   export PATH=\$PATH:$remote_gopath/bin:$remote_work_dir/bin &&

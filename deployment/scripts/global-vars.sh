@@ -9,10 +9,12 @@ analysis_query_params="-q queries/ethereum.sql -q queries/aggregates.sql -q quer
 # Private key, of which the corresponding public key needs to be an authorized ssh key at each instance.
 # (Previously uploaded to IBM Cloud and specified at instance creation in the corresponding template file)
 # private_key_file=/root/.ssh/id_rsa.pub
-private_key_file=scripts/cloud-deploy/key/id_rsa
+private_key_file=${LADON_SSH_KEY_FILE:-scripts/cloud-deploy/key/id_rsa}
+remote_ssh_user=${LADON_REMOTE_USER:-root}
+remote_ssh_port=${LADON_SSH_PORT:-22}
 
 # Options to use when communicating with the remote machines.
-ssh_options="-i $private_key_file -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60"
+ssh_options="-A -i $private_key_file -p $remote_ssh_port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60"
 # ssh_options="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60"
 
 # Command to kill children of exiting scripts
@@ -25,7 +27,7 @@ master_machine=cloud-machine-templates/dedicated-machine-32-CPUs-32GB-RAM-fra02.
 #master_machine=cloud-machine-templates/dedicated-machine-32-CPUs-32GB-RAM-mil01.cmt
 #master_machine=cloud-machine-templates/small-machine-mil01.cmt
 #master_machine=cloud-machine-templates/small-machine-fra02.cmt
-master_port=9999
+master_port=${LADON_MASTER_PORT:-9999}
 machine_status_poll_period=5
 
 # The maximum number of open files to be set at remote machines.
@@ -48,13 +50,13 @@ local_master_log=master-log.log
 local_master_status_file=master-status
 local_master_ready_file=master-ready
 local_result_fetching_log=result-fetching.log
-remote_work_dir=/root
+remote_work_dir=${LADON_REMOTE_HOME:-/root}
 remote_instance_tag_file=$remote_work_dir/instance-tag
 remote_status_file=$remote_work_dir/status
 remote_ready_file=$remote_work_dir/master-ready
-remote_main_log=/root/main_log.log
-remote_master_log=/root/master-log.log
-remote_slave_log=/root/slave-log.log
+remote_main_log=$remote_work_dir/main_log.log
+remote_master_log=$remote_work_dir/master-log.log
+remote_slave_log=$remote_work_dir/slave-log.log
 remote_private_key_file=$remote_work_dir/ibmcloud-ssh-key # Key used by the instances to communicate among each other.
 remote_instance_detail_file=$remote_work_dir/instance-detail.json
 remote_user_script_body=$remote_work_dir/user-script-body.sh
@@ -63,7 +65,8 @@ remote_master_command_file=$remote_work_dir/master-commands.cmd
 remote_exp_dir=$remote_work_dir/current-deployment-data
 remote_analysis_processes=8
 
-remote_gopath=/root/go
+remote_gopath=${LADON_REMOTE_GOPATH:-$remote_work_dir/go}
+remote_goroot=${LADON_REMOTE_GOROOT:-$remote_work_dir/.local/toolchains/go1.21.2}
 remote_code_dir="$remote_gopath/src/github.com/hyperledger-labs/ladon"
 remote_config_dir=$remote_work_dir/experiment-config
 remote_tls_directory="$remote_code_dir/tls-data"

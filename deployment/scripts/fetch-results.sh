@@ -12,7 +12,7 @@ shift 2
 
 # Wait until master server is ready.
 echo "Waiting for master server."
-while ! ssh $ssh_options -q -o "ConnectTimeout=10" "root@$master_ip" "cat $remote_ready_file > /dev/null"; do
+while ! ssh $ssh_options -q -o "ConnectTimeout=10" "$remote_ssh_user@$master_ip" "cat $remote_ready_file > /dev/null"; do
   sleep $machine_status_poll_period
   echo "Master not ready. Retrying in $machine_status_poll_period seconds."
 done
@@ -20,8 +20,8 @@ done
 # Download code and binaries compiled at the master (for later analysis)
 mkdir -p $exp_dir/gopath/bin
 mkdir -p $exp_dir/gopath/src/$downloaded_code_dir
-rsync --progress -rptz -e "ssh $ssh_options" root@$master_ip:$remote_gopath/bin/ordering* $exp_dir/gopath/bin/
-rsync --progress -rptz -e "ssh $ssh_options" root@$master_ip:$remote_code_dir/* $exp_dir/gopath/src/$downloaded_code_dir/
+rsync --progress -rptz -e "ssh $ssh_options" $remote_ssh_user@$master_ip:$remote_gopath/bin/ordering* $exp_dir/gopath/bin/
+rsync --progress -rptz -e "ssh $ssh_options" $remote_ssh_user@$master_ip:$remote_code_dir/* $exp_dir/gopath/src/$downloaded_code_dir/
 
 # Create directory for raw experiment results
 mkdir -p $raw_results || exit 1
@@ -30,7 +30,7 @@ mkdir -p $raw_results || exit 1
 master_status=$(scripts/remote-machine-status.sh $master_ip)
 if [[ "$master_status" =~ ^[0-9]+$ || "$master_status" = "DONE" || "$master_status" = "ANALYZED" ]]; then
   echo "Downloading log data"
-  rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" $raw_results
+    rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" $raw_results
 fi
 
 # Periodically check master status.
@@ -48,7 +48,7 @@ while [[ "$master_status" != "DONE" && "$master_status" != "ANALYZED" ]]; do
 
     # In addition, if status is a number or "DONE" or "ANALYZED, download additional experiment output.
     if [[ "$master_status" =~ ^[0-9]+$ ]] || [[ "$master_status" = "DONE" ]] || [[ "$master_status" != "ANALYZED" ]]; then
-      rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" "$raw_results"
+      rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" "$raw_results"
     fi
   fi
 
@@ -56,12 +56,12 @@ done
 
 # Download last part of the output
 # (In case the last experiment did not even start downloading when status changed to DONE.)
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" "$raw_results"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_exp_dir/raw-results/$remote_log_archives" "$raw_results"
 
 echo "Downloading scripts, queries, and master log."
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:scripts" "$exp_dir/"
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:queries" "$exp_dir/"
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_master_log" "$exp_dir/$local_master_log"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_work_dir/scripts" "$exp_dir/"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_work_dir/queries" "$exp_dir/"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_master_log" "$exp_dir/$local_master_log"
 
 # Wait until the results at the master have been analyzed.
 echo "Waiting for result analysis to finish at the master."
@@ -74,8 +74,8 @@ while [[ "$master_status" != "ANALYZED" ]]; do
 done
 
 echo "Downloading analyzed results."
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_exp_dir/experiment-output" "$exp_dir/"
-rsync --progress -rtz -e "ssh $ssh_options" "root@$master_ip:$remote_exp_dir/continuous-analysis.log" "$exp_dir/"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_exp_dir/experiment-output" "$exp_dir/"
+rsync --progress -rtz -e "ssh $ssh_options" "$remote_ssh_user@$master_ip:$remote_exp_dir/continuous-analysis.log" "$exp_dir/"
 
 ## This is a rather dirty hack for analyzing the profiles.
 ## remote-gopath should be the target of a symlink located at the actual gopath of the remote machines.
