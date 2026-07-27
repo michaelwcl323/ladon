@@ -55,6 +55,9 @@ APT_PACKAGES = [
     "python3",
     "python3-numpy",
     "python3-matplotlib",
+    "rsync",
+    "gettext-base",
+    "psmisc",
 ]
 
 # (GOPATH import path, Git repository, pinned revision)
