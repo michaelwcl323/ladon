@@ -101,9 +101,9 @@ singleLeaderEpoch=$minEpochLength
 
 # Parameters to tune:
 batchsizes="4096"           # [requests]
-batchrates="8"             # [batches/s]
+batchrates="32"            # [batches/s]
 # minBatchTimeout=$(($systemSizes * 1000 / $batchrates))  # [ms]
-minBatchTimeout="500"  # [ms]
+minBatchTimeout="125"       # [ms]
 maxBatchTimeout="4000"      # [ms]
 segmentLengths="16"         # [entries]
 viewChangeTimeouts="60000"  # [ms]

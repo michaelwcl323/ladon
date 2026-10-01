@@ -7,6 +7,10 @@ CLIENT_TIMEOUT = 1920000 # In milliseconds
 SIGNAL_DELAY = "5s"
 STOP_SLAVES_DELAY = "3s"
 SCP_RETRY_COUNT = "10"
+SCP_SSH_OPTIONS = (
+    "-i $ssh_key_file -o BatchMode=yes -o StrictHostKeyChecking=no "
+    "-o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null"
+)
 MASTER_CONFIG_DIR = "experiment-config"
 MASTER_EXP_DIR="current-deployment-data"
 SLAVE_CONFIG_FILE = "config/config.yml"
@@ -52,8 +56,8 @@ def pushConfigFiles(expID, slaves):
     output("# Push config files.")
     for s, configFile in slaves.items():
         output(
-            "exec-start {0} scp-output-{1}-config.log stubborn-scp.sh {5} $own_public_ip:{2}/{3} {4}"
-            "".format(s, expID, MASTER_CONFIG_DIR, configFile, SLAVE_CONFIG_FILE, SCP_RETRY_COUNT)
+            "exec-start {0} scp-output-{1}-config.log stubborn-scp.sh {5} {6} $own_public_ip:{2}/{3} {4}"
+            "".format(s, expID, MASTER_CONFIG_DIR, configFile, SLAVE_CONFIG_FILE, SCP_RETRY_COUNT, SCP_SSH_OPTIONS)
         )
         output("exec-wait {0} 60000 "
                "exec-start {0} experiment-output/{1}/slave-__id__/FAILED echo Could not fetch config; "
@@ -288,8 +292,9 @@ def submitLogs(expID, slaves):
                "exec-wait {0} 2000".format(s, expID))
     for s in slaves:
         output(
-            "exec-start {0} scp-output-{1}-logs.log stubborn-scp.sh {2} "
-            "experiment-output-{1}-slave-__id__.tar.gz $own_public_ip:{3}/raw-results/".format(s, expID, SCP_RETRY_COUNT, MASTER_EXP_DIR))
+            "exec-start {0} scp-output-{1}-logs.log stubborn-scp.sh {2} {4} "
+            "experiment-output-{1}-slave-__id__.tar.gz $own_public_ip:{3}/raw-results/".format(
+                s, expID, SCP_RETRY_COUNT, MASTER_EXP_DIR, SCP_SSH_OPTIONS))
         output("exec-wait {0} 60000 "
                "exec-start {0} experiment-output/{1}/slave-__id__/FAILED echo Could not submit logs; "
                "exec-wait {0} 2000".format(s, expID))

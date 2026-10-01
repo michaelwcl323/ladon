@@ -16,6 +16,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ class LocalConfig:
     throughput: int
     orderer: str
     batch_size: int
+    payload_size: int
     segment_length: int
     view_change_timeout: int
     leader_policy: str
@@ -70,10 +72,11 @@ def local(*, dry_run: bool = False) -> None:
         failures=0,                # Additional faulty peers
         stragglers=0,              # Slow peers; supported with Pbft
         clients=4,                 # Client processes
-        duration=60,               # Experiment duration, seconds
+        duration=120,               # Experiment duration, seconds
         throughput=20000,          # Target throughput, requests/second
         orderer="Pbft",            # Pbft, HotStuff, Raft, or Dummy
         batch_size=4096,           # Maximum requests per batch
+        payload_size=500,          # Request payload, bytes
         segment_length=32,         # Entries per segment
         view_change_timeout=60000, # Milliseconds
         leader_policy="Simple",    # Simple, Single, Backoff, etc.
@@ -138,7 +141,7 @@ def local(*, dry_run: bool = False) -> None:
         actual_generated_path.unlink(missing_ok=True)
 
 
-def remote(*, dry_run: bool = False) -> None:
+def remote(*, dry_run: bool = False) -> Path | None:
     """Run an experiment on hosts from cloudlab_settings.json."""
 
     # ================================================================
@@ -158,6 +161,7 @@ def remote(*, dry_run: bool = False) -> None:
         throughput=20000,
         orderer="Pbft",
         batch_size=4096,
+        payload_size=500,          # Request payload, bytes
         segment_length=16,
         view_change_timeout=60000,
         leader_policy="Simple",
@@ -166,6 +170,51 @@ def remote(*, dry_run: bool = False) -> None:
         fix_batch_rate=True,
     )
     # ================================================================
+
+    return run_remote_config(
+        config=config,
+        controller_hostname=controller_hostname,
+        controller_private_hostname=controller_private_hostname,
+        dry_run=dry_run,
+    )
+
+
+def prepare_node_ssh_key(key_path: Path, password: str | None) -> Path:
+    """Write a passphrase-free copy peers can use for non-interactive scp."""
+
+    destination = Path(tempfile.gettempdir()) / "ladon-node-ssh-key"
+    shutil.copy(key_path, destination)
+    destination.chmod(0o600)
+    if not password:
+        return destination
+    completed = subprocess.run(
+        [
+            "ssh-keygen",
+            "-p",
+            "-P",
+            password,
+            "-N",
+            "",
+            "-f",
+            str(destination),
+        ],
+        text=True,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise RuntimeError(f"Could not prepare the node SSH key: {detail}")
+    return destination
+
+
+def run_remote_config(
+    *,
+    config: LocalConfig,
+    controller_hostname: str,
+    controller_private_hostname: str,
+    dry_run: bool = False,
+) -> Path | None:
+    """Run one caller-provided CloudLab experiment configuration."""
 
     validate_local_config(config)
     settings = load_cloudlab_settings()
@@ -198,7 +247,7 @@ def remote(*, dry_run: bool = False) -> None:
     print_remote_summary(config, key_path, master, peers, client)
     if dry_run:
         print("\nDry run: SSH was checked, but the experiment was not started.")
-        return
+        return None
 
     generated_directory = deployment_directory / ".generated-configs"
     generated_directory.mkdir(parents=True, exist_ok=True)
@@ -230,6 +279,9 @@ def remote(*, dry_run: bool = False) -> None:
     environment.update(
         {
             "LADON_SSH_KEY_FILE": str(key_path),
+            "LADON_NODE_SSH_KEY": str(
+                prepare_node_ssh_key(key_path, settings.get("ssh_key_password"))
+            ),
             "LADON_SSH_PORT": str(master.port),
             "LADON_MASTER_PORT": str(settings.get("port", 9999)),
             "LADON_REMOTE_USER": master.username,
@@ -251,12 +303,13 @@ def remote(*, dry_run: bool = False) -> None:
     print("  " + " ".join(shlex.quote(part) for part in command))
 
     try:
-        subprocess.run(
+        result_directory = run_deployment(
             command,
-            cwd=deployment_directory,
-            env=environment,
-            check=True,
+            deployment_directory,
+            environment,
         )
+        print_result_summary(result_directory)
+        return result_directory
     finally:
         config_path.unlink(missing_ok=True)
         topology_path.unlink(missing_ok=True)
@@ -398,6 +451,7 @@ def print_remote_summary(
     print(f"  Client:            {client.hostname}")
     print(f"  Duration:          {config.duration} seconds")
     print(f"  Target throughput: {config.throughput} req/s")
+    print(f"  Payload size:      {config.payload_size} bytes")
     print(f"  Protocol:          {config.orderer}")
 
 
@@ -408,6 +462,7 @@ def validate_local_config(config: LocalConfig) -> None:
         "duration": config.duration,
         "throughput": config.throughput,
         "batch_size": config.batch_size,
+        "payload_size": config.payload_size,
         "segment_length": config.segment_length,
         "view_change_timeout": config.view_change_timeout,
     }
@@ -515,6 +570,7 @@ def create_local_generator(text: str, config: LocalConfig) -> str:
         "durations": config.duration,
         "orderers": config.orderer,
         "batchsizes": config.batch_size,
+        "payloadSizes": config.payload_size,
         "segmentLengths": config.segment_length,
         "viewChangeTimeouts": config.view_change_timeout,
         "leaderPolicies": config.leader_policy,
@@ -546,6 +602,7 @@ def print_local_summary(
     print(f"  Target throughput:   {config.throughput} req/s")
     print(f"  Orderer:             {config.orderer}")
     print(f"  Batch size:          {config.batch_size}")
+    print(f"  Payload size:        {config.payload_size} bytes")
     print(f"  Segment length:      {config.segment_length}")
     print(f"  Leader policy:       {config.leader_policy}")
     print(f"  Authentication:      {config.authentication}")
@@ -625,81 +682,101 @@ def display_value(
     return f"{value} {unit}".rstrip()
 
 
-def print_result_summary(result_directory: Path) -> None:
+def format_result_summary_row(
+    row: dict[str, str],
+    *,
+    parameters: list[tuple[str, str]] | None = None,
+) -> str:
+    """Format one result-summary.csv row as the human-readable table."""
+
+    target_raw = row.get("target-throughput", "")
+    actual_raw = row.get("throughput-raw", "")
+    achievement = "N/A"
+    try:
+        target = float(target_raw)
+        actual = float(actual_raw)
+        if target:
+            achievement = f"{actual / target * 100:.1f}%"
+    except (TypeError, ValueError):
+        pass
+
+    truncated_available = (
+        row.get("nreq-trunc", "").strip() not in {"", "0", "None"}
+    )
+    result_metrics = [
+        ("Experiment", row.get("exp", "N/A")),
+        ("Topology", f"{row.get('peers', '?')} peers, "
+                     f"{row.get('clients', '?')} client machine(s)"),
+        ("Protocol", f"{row.get('orderer', 'N/A')} / "
+                     f"{row.get('leader-policy', 'N/A')} leaders"),
+        ("Duration", display_value(row, "duration-raw", unit="s")),
+        ("Target throughput", display_value(
+            row, "target-throughput", unit="req/s", decimals=0
+        )),
+        ("Actual throughput", display_value(
+            row, "throughput-raw", unit="req/s"
+        )),
+        ("Target achieved", achievement),
+        ("Average latency", display_value(
+            row, "latency-avg-raw", unit="ms"
+        )),
+        ("P95 latency", display_value(
+            row, "latency-95pctile-raw", unit="ms"
+        )),
+        ("Latency stddev", display_value(
+            row, "latency-stdev-raw", unit="ms"
+        )),
+        ("Sampled requests", display_value(
+            row, "nreq-raw", decimals=0
+        )),
+        ("Proposal rate", display_value(
+            row, "propose-rate-raw", unit="batch/s"
+        )),
+        ("Epochs min/avg/max",
+         f"{display_value(row, 'epochs-min')} / "
+         f"{display_value(row, 'epochs-avg')} / "
+         f"{display_value(row, 'epochs-max')}"),
+        ("View changes", display_value(
+            row, "viewchanges-total", decimals=0
+        )),
+        ("Stable-window data", "available" if truncated_available else "N/A"),
+    ]
+    metrics = [*(parameters or []), *result_metrics]
+    label_width = max(len(label) for label, _ in metrics)
+    value_width = max(len(value) for _, value in metrics)
+    border = f"+-{'-' * label_width}-+-{'-' * value_width}-+"
+    lines = ["Experiment result", border]
+    lines.extend(
+        f"| {label:<{label_width}} | {value:<{value_width}} |"
+        for label, value in metrics
+    )
+    lines.append(border)
+    return "\n".join(lines)
+
+
+def load_result_summary(result_directory: Path) -> list[dict[str, str]]:
+    """Load the CSV rows used by terminal and matrix text summaries."""
+
     summary_file = result_directory / "result-summary.csv"
     if not summary_file.is_file():
-        print(f"\nResult summary was not found: {summary_file}")
-        return
-
+        raise FileNotFoundError(f"Result summary was not found: {summary_file}")
     with summary_file.open(newline="") as source:
         rows = list(csv.DictReader(source))
     if not rows:
-        print(f"\nResult summary contains no experiment rows: {summary_file}")
+        raise RuntimeError(f"Result summary contains no rows: {summary_file}")
+    return rows
+
+
+def print_result_summary(result_directory: Path) -> None:
+    summary_file = result_directory / "result-summary.csv"
+    try:
+        rows = load_result_summary(result_directory)
+    except (FileNotFoundError, RuntimeError) as error:
+        print(f"\n{error}")
         return
 
     for row in rows:
-        target_raw = row.get("target-throughput", "")
-        actual_raw = row.get("throughput-raw", "")
-        achievement = "N/A"
-        try:
-            target = float(target_raw)
-            actual = float(actual_raw)
-            if target:
-                achievement = f"{actual / target * 100:.1f}%"
-        except (TypeError, ValueError):
-            pass
-
-        truncated_available = (
-            row.get("nreq-trunc", "").strip() not in {"", "0", "None"}
-        )
-        metrics = [
-            ("Experiment", row.get("exp", "N/A")),
-            ("Topology", f"{row.get('peers', '?')} peers, "
-                         f"{row.get('clients', '?')} client machine(s)"),
-            ("Protocol", f"{row.get('orderer', 'N/A')} / "
-                         f"{row.get('leader-policy', 'N/A')} leaders"),
-            ("Duration", display_value(row, "duration-raw", unit="s")),
-            ("Target throughput", display_value(
-                row, "target-throughput", unit="req/s", decimals=0
-            )),
-            ("Actual throughput", display_value(
-                row, "throughput-raw", unit="req/s"
-            )),
-            ("Target achieved", achievement),
-            ("Average latency", display_value(
-                row, "latency-avg-raw", unit="ms"
-            )),
-            ("P95 latency", display_value(
-                row, "latency-95pctile-raw", unit="ms"
-            )),
-            ("Latency stddev", display_value(
-                row, "latency-stdev-raw", unit="ms"
-            )),
-            ("Sampled requests", display_value(
-                row, "nreq-raw", decimals=0
-            )),
-            ("Proposal rate", display_value(
-                row, "propose-rate-raw", unit="batch/s"
-            )),
-            ("Epochs min/avg/max",
-             f"{display_value(row, 'epochs-min')} / "
-             f"{display_value(row, 'epochs-avg')} / "
-             f"{display_value(row, 'epochs-max')}"),
-            ("View changes", display_value(
-                row, "viewchanges-total", decimals=0
-            )),
-            ("Stable-window data", "available" if truncated_available else "N/A"),
-        ]
-
-        label_width = max(len(label) for label, _ in metrics)
-        value_width = max(len(value) for _, value in metrics)
-        border = f"+-{'-' * label_width}-+-{'-' * value_width}-+"
-
-        print("\nExperiment result")
-        print(border)
-        for label, value in metrics:
-            print(f"| {label:<{label_width}} | {value:<{value_width}} |")
-        print(border)
+        print(f"\n{format_result_summary_row(row)}")
 
     print(f"\nFull CSV: {summary_file}")
     if any(

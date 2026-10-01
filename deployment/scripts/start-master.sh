@@ -33,7 +33,7 @@ rsync --progress -rptz -e "ssh $ssh_options" $exp_data_dir/config/* "$remote_ssh
 rsync --progress -rptz -e "ssh $ssh_options" queries scripts "$remote_ssh_user@$master_ip:$remote_work_dir" || exit 4
 
 # Upload commands to the master
-scp $ssh_options "$exp_data_dir/$local_master_command_file" "$remote_ssh_user@$master_ip:$remote_master_command_file" || exit 5
+scp $scp_options "$exp_data_dir/$local_master_command_file" "$remote_ssh_user@$master_ip:$remote_master_command_file" || exit 5
 
 # # install dependencies
 # scp $ssh_options "scripts/cloud-deploy/user-script-master.sh.template" "root@$master_ip:/root" || exit 6
@@ -52,11 +52,15 @@ ssh $ssh_options $remote_ssh_user@$master_ip "
   cd $remote_work_dir &&
   cp -r $remote_tls_directory . &&
 
-  echo 'Compiling ISS.' &&
-  # Disabling go modles to be able to compile with new Go version (>=1.16.3)
+  echo 'Compiling Ladon.' &&
+  # Disabling go modules to be able to compile with new Go version (>=1.16.3)
   cd $remote_code_dir &&
+  if ! command -v protoc-gen-go >/dev/null 2>&1; then
+    echo 'Installing protoc-gen-go.' &&
+    GO111MODULE=on go install github.com/golang/protobuf/protoc-gen-go@v1.5.3
+  fi &&
   ./run-protoc.sh &&
-  go install ./..." || exit 6
+  GO111MODULE=off go install ./cmd/..." || exit 6
 # &&
 #
 #  echo 'Cloning and compiling old Mir.' &&

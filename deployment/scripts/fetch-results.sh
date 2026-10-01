@@ -12,7 +12,13 @@ shift 2
 
 # Wait until master server is ready.
 echo "Waiting for master server."
+ready_tries=0
 while ! ssh $ssh_options -q -o "ConnectTimeout=10" "$remote_ssh_user@$master_ip" "cat $remote_ready_file > /dev/null"; do
+  ready_tries=$((ready_tries + 1))
+  if [ "$ready_tries" -ge 180 ]; then
+    echo "Master did not become ready." >&2
+    exit 1
+  fi
   sleep $machine_status_poll_period
   echo "Master not ready. Retrying in $machine_status_poll_period seconds."
 done

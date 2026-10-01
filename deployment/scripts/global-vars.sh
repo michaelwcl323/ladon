@@ -14,7 +14,9 @@ remote_ssh_user=${LADON_REMOTE_USER:-root}
 remote_ssh_port=${LADON_SSH_PORT:-22}
 
 # Options to use when communicating with the remote machines.
-ssh_options="-A -i $private_key_file -p $remote_ssh_port -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60"
+# ssh takes -p for the port. scp takes -P; its -p means "preserve timestamps".
+ssh_options="-A -i $private_key_file -p $remote_ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=60"
+scp_options="-i $private_key_file -P $remote_ssh_port -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o LogLevel=ERROR -o ServerAliveInterval=60"
 # ssh_options="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=60"
 
 # Command to kill children of exiting scripts
