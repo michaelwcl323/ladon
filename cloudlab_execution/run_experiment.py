@@ -40,6 +40,7 @@ class LocalConfig:
     orderer: str
     batch_size: int
     payload_size: int
+    batch_delay: int
     segment_length: int
     view_change_timeout: int
     leader_policy: str
@@ -77,6 +78,7 @@ def local(*, dry_run: bool = False) -> None:
         orderer="Pbft",            # Pbft, HotStuff, Raft, or Dummy
         batch_size=4096,           # Maximum requests per batch
         payload_size=500,          # Request payload, bytes
+        batch_delay=200,           # Batch delay, milliseconds
         segment_length=32,         # Entries per segment
         view_change_timeout=60000, # Milliseconds
         leader_policy="Simple",    # Simple, Single, Backoff, etc.
@@ -162,6 +164,7 @@ def remote(*, dry_run: bool = False) -> Path | None:
         orderer="Pbft",
         batch_size=4096,
         payload_size=500,          # Request payload, bytes
+        batch_delay=200,           # Batch delay, milliseconds
         segment_length=16,
         view_change_timeout=60000,
         leader_policy="Simple",
@@ -452,6 +455,7 @@ def print_remote_summary(
     print(f"  Duration:          {config.duration} seconds")
     print(f"  Target throughput: {config.throughput} req/s")
     print(f"  Payload size:      {config.payload_size} bytes")
+    print(f"  Batch delay:       {config.batch_delay} ms")
     print(f"  Protocol:          {config.orderer}")
 
 
@@ -463,6 +467,7 @@ def validate_local_config(config: LocalConfig) -> None:
         "throughput": config.throughput,
         "batch_size": config.batch_size,
         "payload_size": config.payload_size,
+        "batch_delay": config.batch_delay,
         "segment_length": config.segment_length,
         "view_change_timeout": config.view_change_timeout,
     }
@@ -571,6 +576,10 @@ def create_local_generator(text: str, config: LocalConfig) -> str:
         "orderers": config.orderer,
         "batchsizes": config.batch_size,
         "payloadSizes": config.payload_size,
+        # Pin min=max so CutBatch timeout is exactly batch_delay (not the
+        # generate-local-config.sh formula of ~312 ms for n=10).
+        "minBatchTimeout": config.batch_delay,
+        "maxBatchTimeout": config.batch_delay,
         "segmentLengths": config.segment_length,
         "viewChangeTimeouts": config.view_change_timeout,
         "leaderPolicies": config.leader_policy,
@@ -603,6 +612,7 @@ def print_local_summary(
     print(f"  Orderer:             {config.orderer}")
     print(f"  Batch size:          {config.batch_size}")
     print(f"  Payload size:        {config.payload_size} bytes")
+    print(f"  Batch delay:         {config.batch_delay} ms")
     print(f"  Segment length:      {config.segment_length}")
     print(f"  Leader policy:       {config.leader_policy}")
     print(f"  Authentication:      {config.authentication}")

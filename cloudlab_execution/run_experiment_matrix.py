@@ -41,10 +41,11 @@ CONTROLLER_PRIVATE_HOSTNAME = "10.10.1.11"
 PEERS = 10
 FAILURES = 0
 STRAGGLERS = 0
-CLIENTS = 8
-DURATION = 60
+CLIENTS = 10
+DURATION = 120
 BATCH_SIZE = 4096
 PAYLOAD_SIZE = 500           # Request payload, bytes
+BATCH_DELAY = 200            # Batch delay, milliseconds (pinned min=max)
 SEGMENT_LENGTH = 16
 VIEW_CHANGE_TIMEOUT = 60000
 LEADER_POLICY = "Simple"
@@ -108,6 +109,7 @@ def experiment_config(input_rate: int, orderer: str) -> runner.LocalConfig:
         orderer=orderer,
         batch_size=BATCH_SIZE,
         payload_size=PAYLOAD_SIZE,
+        batch_delay=BATCH_DELAY,
         segment_length=SEGMENT_LENGTH,
         view_change_timeout=VIEW_CHANGE_TIMEOUT,
         leader_policy=LEADER_POLICY,
@@ -167,6 +169,7 @@ def write_result_file(
         ("Orderer", config.orderer),
         ("Batch size", f"{config.batch_size} requests"),
         ("Payload size", f"{config.payload_size} bytes"),
+        ("Batch delay", f"{config.batch_delay} ms"),
         ("Segment length", f"{config.segment_length} entries"),
         ("View-change timeout", f"{config.view_change_timeout} ms"),
         ("Leader policy", config.leader_policy),
