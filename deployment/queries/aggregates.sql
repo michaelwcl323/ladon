@@ -444,3 +444,27 @@ WHERE event = 'VIEW_CHANGE'
 SELECT count()*1.0 / (SELECT count() from (SELECT DISTINCT nodeId FROM protocol))
 FROM protocol
 WHERE event = 'VIEW_CHANGE'
+
+-- Consensus latency: proposer-local monotonic time, nonempty batches only.
+-- CONSENSUS_LATENCY is emitted once for a matching locally proposed sn/digest.
+-- export consensus-latency-avg-raw.val
+SELECT avg(val) / 1000.0
+FROM protocol
+WHERE event = 'CONSENSUS_LATENCY'
+
+-- export consensus-latency-stdev-raw.val
+SELECT stdev(val) / 1000.0
+FROM protocol
+WHERE event = 'CONSENSUS_LATENCY'
+
+-- export consensus-latency-95pctile-raw.val
+SELECT val / 1000.0
+FROM protocol
+WHERE event = 'CONSENSUS_LATENCY'
+ORDER BY val
+LIMIT 1 OFFSET (SELECT count(*) * 95 / 100 FROM protocol WHERE event = 'CONSENSUS_LATENCY')
+
+-- export consensus-samples-raw.val
+SELECT count(*)
+FROM protocol
+WHERE event = 'CONSENSUS_LATENCY'

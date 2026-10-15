@@ -11,7 +11,7 @@ def loadDataFile(fileName, db):
 
     #print("Processing file: {0}".format(fileName))
 
-    protocol_event_types = {"PROPOSE", "PREPREPARE", "COMMIT", "MSG_BATCH", "BANDWIDTH", "BUCKET_STATE", "NEW_EPOCH", "VIEW_CHANGE"}
+    protocol_event_types = {"CONSENSUS_LATENCY", "PROPOSE", "PREPREPARE", "COMMIT", "MSG_BATCH", "BANDWIDTH", "BUCKET_STATE", "NEW_EPOCH", "VIEW_CHANGE"}
     request_event_types = {"CLIENT_SLACK", "REQ_SEND", "REQ_RECEIVE", "RESP_SEND", "RESP_RECEIVE", "ENOUGH_RESP", "REQ_FINISHED", "REQ_DELIVERED"}
     ethereum_event_types = {"ETH_VOTE_SUBMIT", "ETH_VOTE_DONE"}
     cpuusage_event_types = {"CPU_BANDWIDTH_USAGE"}

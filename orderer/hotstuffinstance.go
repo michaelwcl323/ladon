@@ -292,6 +292,7 @@ func (hi *hotStuffInstance) proposeSN(sn int32) {
 		Bool("proposed", hi.segmentProposed).
 		Msg("Sending PROPOSAL.")
 
+	log.RecordProposal(sn, new.digest, len(batch.Requests))
 	tracing.MainTrace.Event(tracing.PROPOSE, int64(sn), int64(len(batch.Requests)))
 
 	// Handle own proposal as follower to make sure state for this node is created before votes are received

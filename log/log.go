@@ -16,6 +16,7 @@ package log
 
 import (
 	"sync"
+	"time"
 
 	pb "github.com/hyperledger-labs/ladon/protobufs"
 	"github.com/hyperledger-labs/ladon/tracing"
@@ -84,17 +85,18 @@ func CommitEntry(entry *Entry) {
 		logger.Warn().Int32("sn", entry.Sn).Msg("Not overwriting log entry.")
 		if entry.Batch != nil {
 			entries.Store(entry.Sn, entry)
+			reportConsensusCommit(entry)
 		}
 		return
 	}
 
+	reportConsensusCommit(entry)
 	tracing.MainTrace.Event(tracing.COMMIT, int64(entry.Sn), 0)
 	logger.Info().
 		Int32("sn", entry.Sn).
 		Int("nReq", len(entry.Batch.Requests)).
 		//Time("proposed", time.Unix(0, entry.ProposeTs)).
 		//Time("committed", time.Unix(0, entry.CommitTs)).
-		Int64("latency", (entry.CommitTs-entry.CommitTs)/1000000).
 		Msg("Committed entry.")
 
 	entryPublishLock.Lock()
@@ -303,4 +305,20 @@ func publishEntry(e *Entry, subscribers []chan *Entry) {
 			logger.Warn().Int32("sn", e.Sn).Msg("Unblocking.")
 		}
 	}
+}
+
+// reportConsensusCommit excludes empty placeholders, aborted values and follower commits.
+// Existing PBFT ProposeTs/CommitTs fields remain dedicated to protocol control.
+func reportConsensusCommit(entry *Entry) {
+	if entry.Batch == nil || len(entry.Batch.Requests) == 0 || entry.Aborted {
+		return
+	}
+	elapsed, ok := localProposals.finish(entry.Sn, entry.Digest, time.Now())
+	if !ok {
+		return
+	}
+	tracing.MainTrace.Event(tracing.CONSENSUS_LATENCY, int64(entry.Sn), elapsed.Microseconds())
+	logger.Info().Int32("sn", entry.Sn).
+		Float64("consensus_latency_ms", float64(elapsed)/float64(time.Millisecond)).
+		Msg("Proposer-local consensus commit.")
 }

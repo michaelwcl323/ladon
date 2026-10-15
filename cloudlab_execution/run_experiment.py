@@ -727,14 +727,21 @@ def format_result_summary_row(
             row, "throughput-raw", unit="req/s"
         )),
         ("Target achieved", achievement),
-        ("Average latency", display_value(
+        ("Average consensus latency", display_value(
+            row, "consensus-latency-avg-raw", unit="ms"
+        )),
+        ("P95 consensus latency", display_value(
+            row, "consensus-latency-95pctile-raw", unit="ms"
+        )),
+        ("Consensus latency stddev", display_value(
+            row, "consensus-latency-stdev-raw", unit="ms"
+        )),
+        ("Latency definition", "propose -> proposer-local commit"),
+        ("Consensus samples", display_value(
+            row, "consensus-samples-raw", decimals=0
+        )),
+        ("Request latency (avg)", display_value(
             row, "latency-avg-raw", unit="ms"
-        )),
-        ("P95 latency", display_value(
-            row, "latency-95pctile-raw", unit="ms"
-        )),
-        ("Latency stddev", display_value(
-            row, "latency-stdev-raw", unit="ms"
         )),
         ("Sampled requests", display_value(
             row, "nreq-raw", decimals=0

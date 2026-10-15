@@ -291,8 +291,7 @@ def main() -> int:
             (
                 csv_file,
                 markdown_file,
-                response_plot_file,
-                scheduled_plot_file,
+                consensus_plot_file,
             ) = summarizer.generate_reports(
                 result_root=RESULT_ROOT,
                 minimum_input_rate=min(input_rates),
@@ -301,8 +300,7 @@ def main() -> int:
             print("\nAggregate tables and plots:")
             print(f"  CSV:                {csv_file}")
             print(f"  Markdown:           {markdown_file}")
-            print(f"  Response latency:   {response_plot_file}")
-            print(f"  Scheduled latency:  {scheduled_plot_file}")
+            print(f"  Consensus latency:  {consensus_plot_file}")
         except (FileNotFoundError, RuntimeError, ValueError) as error:
             print(
                 f"\n[ladon-matrix] WARNING: aggregate reports were not "
