@@ -31,9 +31,9 @@ import summarize_matrix_results as summarizer
 # The full Cartesian product is run in order. For example, three rates
 # and two orderers produce six experiments.
 # =====================================================================
-INPUT_RATES = [20000, 40000, 60000, 80000]  # requests/second
-ORDERERS = ["Pbft", "HotStuff"]  # Pbft, HotStuff, Raft, or Dummy
-RUNS = 2             # Repeat every input-rate/orderer combination
+INPUT_RATES = [40000, 80000, 120000, 160000, 200000]  # requests/second
+ORDERERS = ["Pbft"]  # Pbft, HotStuff, Raft, or Dummy
+RUNS = 1             # Repeat every input-rate/orderer combination
 
 CONTROLLER_HOSTNAME = "10.10.1.11"
 CONTROLLER_PRIVATE_HOSTNAME = "10.10.1.11"
